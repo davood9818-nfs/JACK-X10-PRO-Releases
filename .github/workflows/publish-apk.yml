@@ -1,0 +1,71 @@
+name: Publish JACK X10 PRO APK
+
+on:
+  push:
+    paths:
+      - ".github/workflows/publish-apk.yml"
+  workflow_dispatch:
+    inputs:
+      artifact_url:
+        description: "Temporary download URL for the APK artifact ZIP"
+        required: true
+        type: string
+      version_code:
+        description: "Android versionCode"
+        required: true
+        default: "3"
+        type: string
+      version_name:
+        description: "App versionName"
+        required: true
+        default: "1.2"
+        type: string
+      release_notes:
+        description: "Release notes"
+        required: false
+        default: "بهبود سازگاری نصب و آماده‌سازی امضای پایدار برای به‌روزرسانی‌های بعدی."
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download and extract APK
+        env:
+          FALLBACK_URL: 'https://sdmntprsoutheastus3.oaiusercontent.com/files/00000000-8704-820c-8d59-1bcca9c32d79/raw?se=2026-11-25T00%3A47%3A02Z&sp=r&sv=2026-06-06&sr=b&scid=1eb9fe89-2bec-5366-9bc4-e360737f81c9&skoid=864daabb-d06a-46b3-a747-d35075313a83&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-11-25T00%3A16%3A38Z&ske=2026-11-26T00%3A16%3A38Z&sks=b&skv=2026-06-06&sig=/JuKEpE80cPR4o8mJuiGgdngA09lcFmKGqr4ge%2BoQ8E%3D'
+          INPUT_URL: ${{ inputs.artifact_url }}
+        run: |
+          URL="$INPUT_URL"
+          if [ -z "$URL" ]; then URL="$FALLBACK_URL"; fi
+          curl --fail --location --retry 3 "$URL" -o artifact.zip
+          unzip -p artifact.zip app-debug.apk > JACK-X10-PRO.apk
+          test -s JACK-X10-PRO.apk
+
+      - name: Create update manifest
+        env:
+          VERSION_CODE: ${{ inputs.version_code || '3' }}
+          VERSION_NAME: ${{ inputs.version_name || '1.2' }}
+          RELEASE_NOTES: ${{ inputs.release_notes || 'بهبود سازگاری نصب و آماده‌سازی امضای پایدار برای به‌روزرسانی‌های بعدی.' }}
+        run: |
+          cat > update.json <<EOF
+          {
+            "versionCode": $VERSION_CODE,
+            "versionName": "$VERSION_NAME",
+            "downloadUrl": "https://raw.githubusercontent.com/davood9818-nfs/JACK-X10-PRO-Releases/main/JACK-X10-PRO.apk",
+            "releaseNotes": "$RELEASE_NOTES"
+          }
+          EOF
+
+      - name: Publish files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add JACK-X10-PRO.apk update.json
+          git commit -m "Publish JACK X10 PRO v1.2"
+          git push
