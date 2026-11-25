@@ -10,18 +10,21 @@ on:
       version_code:
         description: "Android versionCode"
         required: true
-        default: "5"
+        default: "6"
         type: string
       version_name:
         description: "App versionName"
         required: true
-        default: "1.4"
+        default: "1.5"
         type: string
       release_notes:
         description: "Release notes"
         required: false
-        default: "بهبودها و رفع اشکالات."
+        default: "بهبود ظاهر و اصلاحات نصب به‌روزرسانی."
         type: string
+  push:
+    paths:
+      - ".publish/trigger.json"
 
 permissions:
   contents: write
@@ -33,33 +36,55 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Download and extract APK
+      - name: Load release metadata
+        id: meta
         env:
           INPUT_URL: ${{ inputs.artifact_url }}
+          INPUT_VERSION_CODE: ${{ inputs.version_code }}
+          INPUT_VERSION_NAME: ${{ inputs.version_name }}
+          INPUT_RELEASE_NOTES: ${{ inputs.release_notes }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            if [[ ! -f .publish/trigger.json ]]; then
+              echo "publish=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            INPUT_URL="$(jq -r '.artifact_url' .publish/trigger.json)"
+            INPUT_VERSION_CODE="$(jq -r '.version_code' .publish/trigger.json)"
+            INPUT_VERSION_NAME="$(jq -r '.version_name' .publish/trigger.json)"
+            INPUT_RELEASE_NOTES="$(jq -r '.release_notes' .publish/trigger.json)"
+          fi
+          test -n "$INPUT_URL"
+          echo "publish=true" >> "$GITHUB_OUTPUT"
+          echo "artifact_url=$INPUT_URL" >> "$GITHUB_OUTPUT"
+          echo "version_code=$INPUT_VERSION_CODE" >> "$GITHUB_OUTPUT"
+          echo "version_name=$INPUT_VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "release_notes=$INPUT_RELEASE_NOTES" >> "$GITHUB_OUTPUT"
+
+      - name: Download and extract APK
+        if: steps.meta.outputs.publish == 'true'
+        env:
+          INPUT_URL: ${{ steps.meta.outputs.artifact_url }}
         run: |
           curl --fail --location --retry 3 "$INPUT_URL" -o artifact.zip
           unzip -p artifact.zip app-debug.apk > JACK-X10-PRO.apk
           test -s JACK-X10-PRO.apk
 
       - name: Create update manifest
+        if: steps.meta.outputs.publish == 'true'
         env:
-          VERSION_CODE: ${{ inputs.version_code }}
-          VERSION_NAME: ${{ inputs.version_name }}
-          RELEASE_NOTES: ${{ inputs.release_notes }}
+          VERSION_CODE: ${{ steps.meta.outputs.version_code }}
+          VERSION_NAME: ${{ steps.meta.outputs.version_name }}
+          RELEASE_NOTES: ${{ steps.meta.outputs.release_notes }}
         run: |
-          cat > update.json <<EOF
-          {
-            "versionCode": $VERSION_CODE,
-            "versionName": "$VERSION_NAME",
-            "downloadUrl": "https://raw.githubusercontent.com/davood9818-nfs/JACK-X10-PRO-Releases/main/JACK-X10-PRO.apk",
-            "releaseNotes": "$RELEASE_NOTES"
-          }
-          EOF
+          jq -n --argjson versionCode "$VERSION_CODE" --arg versionName "$VERSION_NAME" --arg releaseNotes "$RELEASE_NOTES" --arg downloadUrl "https://raw.githubusercontent.com/davood9818-nfs/JACK-X10-PRO-Releases/main/JACK-X10-PRO.apk" '{versionCode:$versionCode,versionName:$versionName,downloadUrl:$downloadUrl,releaseNotes:$releaseNotes}' > update.json
 
       - name: Publish files
+        if: steps.meta.outputs.publish == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [[ -f .publish/trigger.json ]]; then git rm -f .publish/trigger.json; fi
           git add JACK-X10-PRO.apk update.json
           git commit -m "Publish JACK X10 PRO release"
           git push
