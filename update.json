@@ -1,6 +1,6 @@
 {
-  "versionCode": 3,
-  "versionName": "1.2",
+  "versionCode": 4,
+  "versionName": "1.3",
   "downloadUrl": "https://raw.githubusercontent.com/davood9818-nfs/JACK-X10-PRO-Releases/main/JACK-X10-PRO.apk",
-  "releaseNotes": "بهبود سازگاری نصب و آماده‌سازی امضای پایدار برای به‌روزرسانی‌های بعدی."
+  "releaseNotes": "افزودن پشتیبان‌گیری و بازیابی تنظیمات و تاریخچه گفتگوها."
 }
